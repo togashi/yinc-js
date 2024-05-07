@@ -1,0 +1,26 @@
+{
+  "name": "yinc",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "bin": {
+    "yinc.js": "dist/index.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/node": "^18.19.32",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "commander": "^12.0.0",
+    "yaml": "^2.4.2"
+  }
+}
