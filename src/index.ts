@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
-import * as fs from 'node:fs'
-import * as fsp from 'node:fs/promises'
+import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import * as readline from 'node:readline'
 import * as stream from 'node:stream'
@@ -9,10 +8,13 @@ import { execSync } from 'node:child_process'
 import { Command, InvalidArgumentError } from 'commander'
 import * as yaml from 'yaml'
 
+const VERSION = 'yinc.js version 0.2.1'
+
 type Options = {
     indentWidth: number
     outputMultiDocuments: boolean
-    tag: string
+    includeTag: string
+    replaceTag: string
 }
 
 class CDir {
@@ -70,7 +72,7 @@ class SourceStream {
             return execSync(cmdline).toString().split(/\r?\n/)
         } else if (this.spec.startsWith('$(json ') && this.spec.endsWith(')')) {
             const file = this.spec.slice(7, -1)
-            const lines = await fsp.readFile(file).then(data => {
+            const lines = await fs.readFile(file).then(data => {
                 return yaml.stringify(JSON.parse(data.toString()), {
                     singleQuote: true
                 }).split(/\r?\n/)
@@ -86,7 +88,7 @@ class SourceStream {
                 return res.text().then(text => text.split(/\r?\n/))
             })
         } else {
-            const lines = await fsp.readFile(this.spec).then(data => {
+            const lines = await fs.readFile(this.spec).then(data => {
                 return data.toString().split(/\r?\n/)
             })
             this.cdir = new CDir(path.dirname(this.spec))
@@ -112,22 +114,20 @@ class SourceStream {
 
     async process(options: Options): Promise<void> {
         const lines = await this.getContent()
-        const escapedTag = options.tag.replace(/!/g, '\\!')
+        const escapedTag = `(${options.includeTag}|${options.replaceTag})`.replace(/!/g, '\\!')
         const exp = `^(?<indent>\\s*)((?<text>[^\\s#]+)\\s+)?(?<tag>${escapedTag})\\s+(?<spec>.+)$`
         const pat = new RegExp(exp)
         for (const line of lines) {
             if (!line) continue
             const m = pat.exec(line)
             if (m && m.groups) {
-                if (m.groups.text) {
+                let firstIndent = ''
+                let newIndent = this.indent + m.groups.indent
+                if (m.groups.text && m.groups.tag === options.includeTag) {
                     this.writeIndent(`${m.groups.indent}${m.groups.text}`)
                     if (m.groups.text !== '-') {
                         this.write('\n')
                     }
-                }
-                let firstIndent = ''
-                let newIndent = this.indent + m.groups.indent
-                if (m.groups.text) {
                     newIndent += ' '.repeat(options.indentWidth)
                     if (m.groups.text === '-') {
                         firstIndent = ' '
@@ -151,8 +151,8 @@ async function start(files: string[], options: Options, /*cmd: Command*/) {
     for (const file of files) {
         if (options.outputMultiDocuments && nth > 0) {
             process.stdout.write('---\n')
-            nth++
         }
+        nth++
         const stream = new SourceStream(file, process.stdout)
         await stream.process(options)
     }
@@ -160,7 +160,7 @@ async function start(files: string[], options: Options, /*cmd: Command*/) {
 
 (() => {
     const cmd = new Command()
-        .version('yinc.js version 0.1.0')
+        .version(VERSION)
         .description('YAML include')
         .option('-w, --indent-width <n>', 'Indent width', (v: string): number => {
             const n = Number(v)
@@ -173,7 +173,8 @@ async function start(files: string[], options: Options, /*cmd: Command*/) {
             return n
         }, 2)
         .option('-m, --output-multi-documents', 'Output multiple documents')
-        .option('-t, --tag <tag>', 'Specify include tag', '!include')
+        .option('--include-tag <tag>', 'Specify include tag', '!include')
+        .option('--replace-tag <tag>', 'Specify replace tag', '!replace')
         .arguments('[file...]')
         .action(start)
     cmd.parseAsync(process.argv)

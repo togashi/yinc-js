@@ -6,7 +6,10 @@
     "yinc.js": "dist/index.js"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "build:bundle": "node build.mjs",
+    "clean": "rimraf dist",
+    "rebuild": "run-s clean build"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -17,6 +20,9 @@
   "description": "",
   "devDependencies": {
     "@types/node": "^18.19.32",
+    "esbuild": "^0.21.1",
+    "npm-run-all": "^4.1.5",
+    "rimraf": "^5.0.5",
     "typescript": "^5.4.5"
   },
   "dependencies": {
