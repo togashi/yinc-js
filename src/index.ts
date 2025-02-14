@@ -6,9 +6,10 @@ import * as readline from 'node:readline'
 import * as stream from 'node:stream'
 import { execSync } from 'node:child_process'
 import { Command, InvalidArgumentError } from 'commander'
+import { globIterate } from 'glob'
 import * as yaml from 'yaml'
 
-const VERSION = 'yinc.js version 0.2.1'
+const VERSION = 'yinc.js version 0.3.0'
 
 type Options = {
     indentWidth: number
@@ -121,20 +122,23 @@ class SourceStream {
             if (!line) continue
             const m = pat.exec(line)
             if (m && m.groups) {
-                let firstIndent = ''
                 let newIndent = this.indent + m.groups.indent
-                if (m.groups.text && m.groups.tag === options.includeTag) {
-                    this.writeIndent(`${m.groups.indent}${m.groups.text}`)
-                    if (m.groups.text !== '-') {
-                        this.write('\n')
+                for await (const file of globIterate(m.groups.spec)) {
+                    let firstIndent = ''
+                    let indent = String(newIndent)
+                    if (m.groups.text && m.groups.tag === options.includeTag) {
+                        this.writeIndent(`${m.groups.indent}${m.groups.text}`)
+                        if (m.groups.text !== '-') {
+                            this.write('\n')
+                        }
+                        indent += ' '.repeat(options.indentWidth)
+                        if (m.groups.text === '-') {
+                            firstIndent = ' '
+                        }
                     }
-                    newIndent += ' '.repeat(options.indentWidth)
-                    if (m.groups.text === '-') {
-                        firstIndent = ' '
-                    }
+                    const sub = this.subStream(file, indent, firstIndent)
+                    await sub.process(options)
                 }
-                const sub = this.subStream(m.groups.spec, newIndent, firstIndent)
-                await sub.process(options)
             } else {
                 this.writeIndent(line + '\n')
             }
