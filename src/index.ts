@@ -9,7 +9,7 @@ import { Command, InvalidArgumentError } from 'commander'
 import { globIterate } from 'glob'
 import * as yaml from 'yaml'
 
-const VERSION = 'yinc.js version 0.3.0'
+const VERSION = 'yinc.js version 0.3.1'
 
 type Options = {
     indentWidth: number
@@ -71,8 +71,8 @@ class SourceStream {
         } else if (this.spec.startsWith('$(shell ') && this.spec.endsWith(')')) {
             const cmdline = this.spec.slice(8, -1)
             return execSync(cmdline).toString().split(/\r?\n/)
-        } else if (this.spec.startsWith('$(json ') && this.spec.endsWith(')')) {
-            const file = this.spec.slice(7, -1)
+        } else if ((this.spec.startsWith('$(json ') && this.spec.endsWith(')')) || this.spec.endsWith('.json')) {
+            const file = this.spec.startsWith('$(json ') ? this.spec.slice(7, -1) : this.spec
             const lines = await fs.readFile(file).then(data => {
                 return yaml.stringify(JSON.parse(data.toString()), {
                     singleQuote: true
@@ -113,6 +113,20 @@ class SourceStream {
         this.out += chunk.length
     }
 
+    async *expandSpec(spec: string): AsyncGenerator<string> {
+        if (spec.startsWith('$(shell ') && spec.endsWith(')')) {
+            yield spec
+        } else if (spec.startsWith('$(json ') && spec.endsWith(')')) {
+            yield spec
+        } else if (spec.startsWith('http://') || spec.startsWith('https://')) {
+            yield spec
+        } else {
+            for await (const file of globIterate(spec)) {
+                yield file
+            }
+        }
+    }
+
     async process(options: Options): Promise<void> {
         const lines = await this.getContent()
         const escapedTag = `(${options.includeTag}|${options.replaceTag})`.replace(/!/g, '\\!')
@@ -123,7 +137,7 @@ class SourceStream {
             const m = pat.exec(line)
             if (m && m.groups) {
                 let newIndent = this.indent + m.groups.indent
-                for await (const file of globIterate(m.groups.spec)) {
+                for await (const file of this.expandSpec(m.groups.spec)) {
                     let firstIndent = ''
                     let indent = String(newIndent)
                     if (m.groups.text && m.groups.tag === options.includeTag) {
